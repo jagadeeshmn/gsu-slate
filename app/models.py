@@ -2,18 +2,18 @@ from app import db
 from datetime import datetime
 
 class Department(db.Model):
-    university = db.Column(db.String(40),primary_key=True)
-    dname = db.Column(db.String(40),unique=True)
+    university = db.Column(db.String(40),nullable=False)
+    dname = db.Column(db.String(40),primary_key=True)
     programs = db.relationship('Program',backref='department',lazy='dynamic')
 
     def __repr__(self):
         return '<Department {}>'.format(self.dname)
 
 class Program(db.Model):
-    university = db.Column(db.String(40),unique=True)
-    dname = db.Column(db.String(40),unique=True)
+    university = db.Column(db.String(40),nullable=False)
+    dname = db.Column(db.String(40),nullable=False)
     program = db.Column(db.String(10), db.CheckConstraint('program in (MS,PhD)'),primary_key=True)
-    department_university = db.Column(db.String(40), db.ForeignKey('department.university'))
+    department_dname = db.Column(db.String(40), db.ForeignKey('department.dname'))
     applications = db.relationship('Application',backref='application',lazy='dynamic')
 
     def __repr__(self):

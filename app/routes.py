@@ -1,8 +1,9 @@
 from flask import request, flash, jsonify
 from app import app, db
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.models import Applicant
+from app.models import Applicant, Application, Program
 from flask_api import status
+from datetime import datetime
 
 def hash_password(password):
     return generate_password_hash(password)
@@ -73,6 +74,33 @@ def edit_profile():
 @app.route('/apply',methods=['POST'])
 def apply():
     try:
-        pass
-    except:
-        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to apply'})
+        applicant = Applicant.query.filter_by(email = request.json['email']).first()
+        if applicant is not None:
+            application = Application.query.filter_by(email = request.json['email']).first()
+            if application is None:
+                program = Program.query.filter_by(program = request.json['program']).first()
+                application = Application(
+                    email = applicant.email,
+                    university = request.json['university'] or 'GSU',
+                    dname = request.json['dname'],
+                    program = program.program,
+                    dateOfApp = request.json['dateOfApp'] or datetime.utcnow(),
+                    termOfAdmission = request.json['termOfAdmission'],
+                    yearOfAdmission = request.json['yearOfAdmission'],
+                    admissionStatus = request.json['admissionStatus'],
+                    dataSentToPaws = request.json['dataSentToPaws'] or 'NO',
+                    applicant_email = applicant.email,
+                    applicant_program = program.program
+                )
+
+                db.session.add(application)
+                db.session.commit()
+
+                return jsonify({'status': status.HTTP_201_CREATED,'message':'Your application sent successfully'})
+            else:
+                return jsonify({'status': status.HTTP_200_OK,'message':'Looks like you have already applied.'})
+        else:
+            return jsonify({'status':status.HTTP_200_OK,'message':'Applicant not found'})
+    except Exception as e:
+        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to apply'})
