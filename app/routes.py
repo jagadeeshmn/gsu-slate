@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import Applicant, Application, Program
 from flask_api import status
 from datetime import datetime
+from sqlalchemy import func
 
 def hash_password(password):
     return generate_password_hash(password)
@@ -104,3 +105,40 @@ def apply():
     except Exception as e:
         return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
         # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to apply'})
+@app.route('/getappl',methods=['GET'])        
+def getappl():       
+    try:
+        return_data = []
+        applications = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Application.admissionStatus == 'ACCEPT',Application.university == 'GSU').add_columns(Application.email,Applicant.fname,Applicant.lname,Application.dateOfApp).all()
+        if applications is not None:
+            for application in applications:
+                application_data = {}
+                application_data['email'] = application[2]
+                application_data['fname'] = application[3]
+                application_data['lname'] = application[4]
+                application_data['dateOfApp'] = application[5]
+                return_data.append(application_data)
+            return jsonify({'status':status.HTTP_200_OK,'data':return_data})
+    except Exception as e:
+        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to get applications'})
+@app.route('/getstats',methods=['POST'])        
+def getstats():       
+    try:
+        university = request.json['university']
+        termOfAdmission= request.json['termOfAdmission']
+        yearOfAdmission=request.json['yearOfAdmission']
+        return_data = []
+        statistics = db.session.query(Application.dname,Application.program,Application.admissionStatus, func.count(Application.admissionStatus).label('Count of Status')).filter(Application.university == university, Application.termOfAdmission == termOfAdmission , Application.yearOfAdmission == yearOfAdmission).group_by(Application.dname,Application.program,Application.admissionStatus).all()
+        if statistics is not None:
+            for s in statistics:
+                s_data = {}
+                s_data['department'] = s[0]
+                s_data['program'] = s[1]
+                s_data['status'] = s[2]
+                s_data['count'] = s[3]
+                return_data.append(s_data)
+            return jsonify({'status':status.HTTP_200_OK,'data':return_data})
+    except Exception as e:
+        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to get applications'})
