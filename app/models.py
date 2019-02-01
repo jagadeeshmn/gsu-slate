@@ -11,7 +11,7 @@ class Department(db.Model):
 
 class Program(db.Model):
     university = db.Column(db.String(40),nullable=False)
-    dname = db.Column(db.String(40),nullable=False)
+    dname = db.Column(db.String(40),primary_key=True)
     program = db.Column(db.String(10), db.CheckConstraint('program in (MS,PhD)'),primary_key=True)
     department_dname = db.Column(db.String(40), db.ForeignKey('department.dname'))
     applications = db.relationship('Application',backref='application',lazy='dynamic')
