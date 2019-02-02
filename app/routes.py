@@ -24,7 +24,7 @@ def login():
         if applicant is None or not check_password(applicant.password,request.json['password']):
             return jsonify({'status': status.HTTP_401_UNAUTHORIZED,'message':'Invalid Credentials'})
         else:
-            return jsonify({'status': status.HTTP_200_OK,'message':'Login successful'})
+            return jsonify({'status': status.HTTP_200_OK,'message':'Login successful','aid':applicant.aid})
     except:
         return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to login'})
 
@@ -46,13 +46,13 @@ def register():
 @app.route('/edit_profile',methods=['POST'])
 def edit_profile():
     try:
-        applicant = Applicant.query.filter_by(email = request.json['email']).first()
+        applicant = Applicant.query.filter_by(aid = request.json['aid']).first()
         if applicant is not None:
-            password = hash_password(request.json['password'])
-            
             applicant.fname = request.json['fname']
             applicant.lname = request.json['lname']
-            applicant.password = password
+            if 'password' in request.json.keys():
+                password = hash_password(request.json['password'])
+                applicant.password = password
             applicant.address1 = request.json['address1']
             applicant.address2 = request.json['address2']
             applicant.city = request.json['city']
@@ -66,30 +66,31 @@ def edit_profile():
             db.session.add(applicant)
             db.session.commit()
 
-            return jsonify({'status': status.HTTP_201_CREATED,'message':'Your profile updated successfully'})
+            return jsonify({'status': status.HTTP_200_OK,'message':'Your profile updated successfully'})
         else:
-            return jsonify({'status': status.HTTP_200_OK,'message':'Applicant Not found'})
-    except:
-        return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to Edit Profile'})
+            return jsonify({'status': status.HTTP_404_NOT_FOUND,'message':'Applicant Not found'})
+    except Exception as e:
+        return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to Edit Profile'})
 
 @app.route('/apply',methods=['POST'])
 def apply():
     try:
-        applicant = Applicant.query.filter_by(email = request.json['email']).first()
+        applicant = Applicant.query.filter_by(aid = request.json['aid']).first()
         if applicant is not None:
-            application = Application.query.filter_by(email = request.json['email']).first()
+            application = Application.query.filter_by(email = applicant.email).first()
             if application is None:
                 program = Program.query.filter_by(program = request.json['program']).first()
                 application = Application(
                     email = applicant.email,
-                    university = request.json['university'] or 'GSU',
+                    university = 'GSU',
                     dname = request.json['dname'],
                     program = program.program,
-                    dateOfApp = request.json['dateOfApp'] or datetime.utcnow(),
+                    dateOfApp = datetime.utcnow(),
                     termOfAdmission = request.json['termOfAdmission'],
                     yearOfAdmission = request.json['yearOfAdmission'],
-                    admissionStatus = request.json['admissionStatus'],
-                    dataSentToPaws = request.json['dataSentToPaws'] or 'NO',
+                    admissionStatus = 'PENDING',
+                    dataSentToPaws = 'NO',
                     applicant_email = applicant.email,
                     applicant_program = program.program
                 )
@@ -101,9 +102,10 @@ def apply():
             else:
                 return jsonify({'status': status.HTTP_200_OK,'message':'Looks like you have already applied.'})
         else:
-            return jsonify({'status':status.HTTP_200_OK,'message':'Applicant not found'})
-    except:
-        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to apply'})
+            return jsonify({'status':status.HTTP_404_NOT_FOUND,'message':'Applicant not found'})
+    except Exception as e:
+        return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to apply'})
 
 @app.route('/update_status',methods=['PUT'])
 def update_status():
@@ -143,27 +145,26 @@ def get_accepted_applications():
 def get_all_applications():     
     try:
         return_data = []
-        applications = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Application.university == 'GSU').add_columns(Application.email,Applicant.fname,Applicant.lname,Application.dateOfApp,Application.admissionStatus).all()
+        applications = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Application.university == 'GSU').add_columns(Application.email,Applicant.aid,Applicant.fname,Applicant.lname,Application.dateOfApp,Application.admissionStatus).all()
         if applications is not None:
             for application in applications:
                 application_data = {}
                 application_data['email'] = application[2]
-                application_data['fname'] = application[3]
-                application_data['lname'] = application[4]
-                application_data['dateOfApp'] = application[5]
-                application_data['admissionStatus'] = application[6]
+                application_data['aid'] = application[3]
+                application_data['fname'] = application[4]
+                application_data['lname'] = application[5]
+                application_data['dateOfApp'] = application[6]
+                application_data['admissionStatus'] = application[7]
                 return_data.append(application_data)
             return jsonify({'status':status.HTTP_200_OK,'data':return_data})
     except Exception as e:
         return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
         # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to get applications'})
 
-@app.route('/fetch_profile',methods=['POST'])
-def fetch_profile():
+@app.route('/<applicantID>/fetch_profile',methods=['GET'])
+def fetch_profile(applicantID):
     try:
-        applicant = Applicant.query.filter_by(email = request.json['email']).first()
-        
-        # application = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Applicant.email == request.json['email']).add_columns(Application.email,Applicant.fname,Applicant.lname,Application.dateOfApp,Application.admissionStatus).first()
+        applicant = Applicant.query.filter_by(aid = applicantID).first()
         return_data = {}
         if applicant is not None:
             return_data['email'] = applicant.email
@@ -172,6 +173,7 @@ def fetch_profile():
             return_data['address1'] = applicant.address1
             return_data['address2'] = applicant.address2
             return_data['city'] = applicant.city
+            return_data['state'] = applicant.state
             return_data['zip'] = applicant.zip
             return_data['GREQ'] = applicant.GREQ
             return_data['GREV'] = applicant.GREV
@@ -183,19 +185,31 @@ def fetch_profile():
     except:
         return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to fetch Applicant profile'})
 
-@app.route('/fetch_application',methods=['POST'])
-def fetch_application():
+@app.route('/<applicantID>/fetch_application',methods=['GET'])
+def fetch_application(applicantID):
     try:
-        application = Application.query.filter_by(email = request.json['email']).first()
+        application = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Applicant.aid == applicantID).first()
         return_data = {}
         if application is not None:
-            return_data['university'] = application.university
-            return_data['dname'] = application.dname
-            return_data['program'] = application.program
-            return_data['dateOfApp'] = application.dateOfApp
-            return_data['termOfAdmission'] = application.termOfAdmission
-            return_data['yearOfAdmission'] = application.yearOfAdmission
-            return_data['admissionStatus'] = application.admissionStatus
+            return_data['email'] = application.Applicant.email
+            return_data['fname'] = application.Applicant.fname
+            return_data['lname'] = application.Applicant.lname
+            return_data['address1'] = application.Applicant.address1
+            return_data['address2'] = application.Applicant.address2
+            return_data['city'] = application.Applicant.city
+            return_data['state'] = application.Applicant.state
+            return_data['zip'] = application.Applicant.zip
+            return_data['GREQ'] = application.Applicant.GREQ
+            return_data['GREV'] = application.Applicant.GREV
+            return_data['GREA'] = application.Applicant.GREA
+            return_data['TOEFL'] = application.Applicant.TOEFL
+            return_data['university'] = application.Application.university
+            return_data['dname'] = application.Application.dname
+            return_data['program'] = application.Application.program
+            return_data['dateOfApp'] = application.Application.dateOfApp
+            return_data['termOfAdmission'] = application.Application.termOfAdmission
+            return_data['yearOfAdmission'] = application.Application.yearOfAdmission
+            return_data['admissionStatus'] = application.Application.admissionStatus
             return jsonify({'status':status.HTTP_200_OK,'data':return_data})
         else:
             return jsonify({'status':status.HTTP_200_OK,'message':'Application not found'})
