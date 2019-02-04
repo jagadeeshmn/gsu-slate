@@ -40,8 +40,9 @@ def register():
             return jsonify({'status': status.HTTP_201_CREATED,'message':'Congratulations, you are now a registered user'})
         else:
             return jsonify({'status': status.HTTP_409_CONFLICT,'message':'Please use a different email'})
-    except:
-        return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to register'})
+    except Exception as e:
+        return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
+        # return jsonify({'status': status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to register'})
 
 @app.route('/edit_profile',methods=['POST'])
 def edit_profile():
@@ -127,14 +128,20 @@ def update_status():
 def get_accepted_applications():     
     try:
         return_data = []
-        applications = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Application.admissionStatus == 'ACCEPT',Application.university == 'GSU').add_columns(Application.email,Applicant.fname,Applicant.lname,Application.dateOfApp).all()
+        applications = db.session.query(Applicant,Application).filter(Applicant.email == Application.email).filter(Application.admissionStatus == 'ACCEPT',Application.university == 'GSU').all()
         if applications is not None:
             for application in applications:
                 application_data = {}
-                application_data['email'] = application[2]
-                application_data['fname'] = application[3]
-                application_data['lname'] = application[4]
-                application_data['dateOfApp'] = application[5]
+                application_data['email'] = application.Application.email
+                application_data['fname'] = application.Applicant.fname
+                application_data['lname'] = application.Applicant.lname
+                application_data['address1'] = application.Applicant.address1
+                application_data['address2'] = application.Applicant.address2
+                application_data['city'] = application.Applicant.city
+                application_data['state'] = application.Applicant.state
+                application_data['zip'] = application.Applicant.zip
+                application_data['sType'] = application.Application.program
+                application_data['majorDept'] = application.Application.dname
                 return_data.append(application_data)
             return jsonify({'status':status.HTTP_200_OK,'data':return_data})
     except Exception as e:
@@ -216,15 +223,14 @@ def fetch_application(applicantID):
     except:
         return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to fetch Application'})
 
-
 @app.route('/getstats',methods=['POST'])        
 def getstats():       
     try:
-        university = request.json['university']
+        
         termOfAdmission= request.json['termOfAdmission']
         yearOfAdmission=request.json['yearOfAdmission']
         #return_data = []
-        statistics = db.session.query(Application.dname,Application.program,Application.admissionStatus, func.count(Application.admissionStatus).label('Count of Status')).filter(Application.university == university, Application.termOfAdmission == termOfAdmission , Application.yearOfAdmission == yearOfAdmission).group_by(Application.dname,Application.program,Application.admissionStatus).all()
+        statistics = db.session.query(Application.dname,Application.program,Application.admissionStatus, func.count(Application.admissionStatus).label('Count of Status')).filter(Application.university == 'GSU', Application.termOfAdmission == termOfAdmission , Application.yearOfAdmission == yearOfAdmission).group_by(Application.dname,Application.program,Application.admissionStatus).all()
         if statistics is not None:
             def fill_dict(p,v,total,total_department):
                 course = v.pop(0)
@@ -252,10 +258,9 @@ def getstats():
                   d[k]=p
                   d[k]['total_department']=total_department
                 p,total_program,total_department = fill_dict(p,v,total_program,total_department)
-                d[k]['total_department']=total_department 
-
+                d[k]['total_department']=total_department
+            d = [{k:v} for(k,v) in d.items()]
             return jsonify({'status':status.HTTP_200_OK,'data':d})
     except Exception as e:
         return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':str(e)})
         # return jsonify({'status':status.HTTP_500_INTERNAL_SERVER_ERROR,'message':'Unable to get applications'})
-
